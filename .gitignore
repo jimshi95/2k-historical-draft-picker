@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.[oa]
+*.pyd
+*.so
+
+# Virtual environment
+.venv/
+env/
+venv/
+
+# Environment variables
+.env
+
+# Log files
+logs/
+*.log
+
+# Application-specific files
+draft_weights.json
+current_year.json
+fifty_year_simulation_results.json
+simulation_report.txt
+
+# IDE settings
+.idea/
+.vscode/
