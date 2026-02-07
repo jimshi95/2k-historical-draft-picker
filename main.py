@@ -2,13 +2,28 @@ import random
 import json
 import os
 import sys
+from pathlib import Path
 from dotenv import load_dotenv
 
+
+def get_app_data_dir() -> Path:
+    override = os.environ.get("DRAFT_PICKER_DATA_DIR")
+    if override:
+        base_dir = Path(override)
+    else:
+        base_dir = Path(os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or Path.home())
+        base_dir = base_dir / "2KDraftPicker"
+    base_dir.mkdir(parents=True, exist_ok=True)
+    return base_dir
+
+
+DATA_DIR = get_app_data_dir()
+load_dotenv(DATA_DIR / ".env")
 load_dotenv()
 
 # --- Constants ---
-CURRENT_YEAR_FILE = 'current_year.json'
-DRAFT_WEIGHTS_FILE = 'draft_weights.json'
+CURRENT_YEAR_FILE = str(DATA_DIR / "current_year.json")
+DRAFT_WEIGHTS_FILE = str(DATA_DIR / "draft_weights.json")
 INITIAL_SIMULATION_YEAR = 2026
 EARLIEST_DRAFT_YEAR = 1980
 # This constant defines the upper limit for years considered in draft_weights.json
@@ -130,8 +145,8 @@ def load_draft_weights():
         last_used_sim_year = raw_loaded_weights.get(year_str, {}).get('last_used_year')
 
         is_available = True
-        # 规则1: 选秀年份必须至少比当前模拟年份早 COOL_DOWN_PERIOD 年
-        if current_sim_year - year_to_check < COOL_DOWN_PERIOD:
+        # 规则1: 选秀年份不能在当前模拟年份的近20年范围内
+        if current_sim_year - COOL_DOWN_PERIOD < year_to_check <= current_sim_year:
             is_available = False
         # 规则 2: 如果使用过，必须已过冷却期
         elif last_used_sim_year is not None and \
@@ -188,8 +203,8 @@ def reset_weights():
     current_sim_year = get_current_year()
     weights = {}
     for year_to_check in range(EARLIEST_DRAFT_YEAR, LATEST_HISTORICAL_DRAFT_YEAR + 1):
-        # 年份是否达到基础的可选年龄 (20年规则)
-        is_age_eligible = (current_sim_year - year_to_check >= COOL_DOWN_PERIOD)
+        # 选秀年份不能在近20年窗口内
+        is_age_eligible = (year_to_check <= current_sim_year - COOL_DOWN_PERIOD or year_to_check > current_sim_year)
         weights[year_to_check] = {
             'available': 1 if is_age_eligible else 0,
             'last_used_year': None  # 重置使用记录
@@ -292,10 +307,20 @@ def main():
             print_draft_weights(load_draft_weights())
             input("\n按回车键继续...")
         elif choice == '4':
-            # 始终从 get_current_year 的逻辑源头获取重置年份
-            reset_year = int(os.environ.get('SIMULATION_START_YEAR', INITIAL_SIMULATION_YEAR))
-            save_current_year(reset_year) 
-            print(f"当前模拟年份已重置到{reset_year}年.")
+            default_reset_year = int(os.environ.get('SIMULATION_START_YEAR', INITIAL_SIMULATION_YEAR))
+            year_input = input(f"请输入起始年份 (直接回车默认{default_reset_year}): ").strip()
+            if year_input:
+                try:
+                    reset_year = int(year_input)
+                except ValueError:
+                    print("输入的年份无效，操作取消。")
+                    input("\n按回车键继续...")
+                    continue
+            else:
+                reset_year = default_reset_year
+            save_current_year(reset_year)
+            reset_weights()
+            print(f"当前模拟年份已重置到{reset_year}年，所有年份权重已重新计算。")
             input("\n按回车键继续...")
         elif choice == '0':
             print("再见!")
