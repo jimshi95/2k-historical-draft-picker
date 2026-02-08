@@ -1,20 +1,20 @@
-# 2K 选秀年份模拟器
+# 2K 选秀年份模拟器 / 2K Draft Year Simulator
 
 这是一个用于模拟 NBA 2K 游戏中"终极联盟"模式下，如何策略性地选择历史选秀名单的工具。它可以帮助用户在多个赛季中实现选秀年份的随机化选择，同时通过智能的冷却机制，确保了长周期内的多样性和趣味性。
 
-## 核心功能
+A tool for NBA 2K's "Ultimate League" mode that helps strategically randomize historical draft year selections across seasons with a 20-year cooldown mechanism for diversity.
 
-- **智能随机选秀**: 从可用的历史年份池中（1980-2025年），根据规则随机选择一个选秀年份。
-- **20年窗口规则**: 当前模拟年份前20年以内的年份不可选，窗口之外的年份（更早的和未来的）均可选。例如模拟年份为1995时，1976-1995不可选，1996-2025（未来选秀）和1975以前均可选。
-- **动态冷却机制**: 已被选中的年份会进入一个20年的冷却期，在此期间不能再次被选中。
-- **状态持久化与可配置性**:
-    - **起始年份**: 通过 `.env` 文件中的 `SIMULATION_START_YEAR=XXXX` 配置，默认为2026。
-    - **模拟进度**: 当前模拟年份保存在 `current_year.json` 中。
-    - **选秀池状态**: 所有选秀年份的权重和使用状态保存在 `draft_weights.json` 中。
-    - 以上数据文件存储在 `%LOCALAPPDATA%\2KDraftPicker\` 目录下，可通过环境变量 `DRAFT_PICKER_DATA_DIR` 自定义。
-- **50年深度模拟测试**: `run_simulation.py` 可运行50年完整模拟，测试系统长期行为并生成日志和报告。
+## 核心功能 / Core Features
 
-## 安装指南
+- **智能随机选秀 / Smart Random Draft**: 从可用的历史年份池中（1980-2025年），根据规则随机选择一个选秀年份。
+- **20年窗口规则 / 20-Year Window Rule**: 当前模拟年份前20年以内的年份不可选。
+- **动态冷却机制 / Dynamic Cooldown**: 已被选中的年份会进入一个20年的冷却期。
+- **多语言支持 / i18n**: 支持中文和英文，自动检测系统语言，可手动切换。
+- **状态持久化 / State Persistence**:
+    - 数据文件存储在 `%LOCALAPPDATA%\2KDraftPicker\` 目录下，可通过环境变量 `DRAFT_PICKER_DATA_DIR` 自定义。
+    - 语言偏好保存在 `settings.json` 中。
+
+## 安装指南 / Installation
 
 1.  **克隆代码库**
     ```bash
@@ -38,9 +38,28 @@
     ```
     SIMULATION_START_YEAR=2026
     ```
-    如果未设置，程序将默认从2026年开始。
 
-## 如何使用
+## 如何使用 / Usage
+
+### 语言切换 / Language Switching
+
+语言自动检测优先级：
+1. 环境变量 `DRAFT_PICKER_LANG` (`zh` 或 `en`)
+2. `settings.json` 中保存的用户偏好
+3. 操作系统 locale
+4. 默认中文
+
+```bash
+# 强制英文 / Force English
+set DRAFT_PICKER_LANG=en
+python main.py
+
+# 强制中文 / Force Chinese
+set DRAFT_PICKER_LANG=zh
+python main.py
+```
+
+GUI 版本可在界面右上角下拉框切换语言。
 
 ### 运行 GUI 版本（推荐）
 
@@ -56,58 +75,40 @@ python gui_main.py
 python main.py
 ```
 
-程序会显示一个交互式菜单：
-- **1. 进行选秀**: 随机选择一个可用的选秀年份，并随机指定需要废掉的8个球员。
-- **2. 重置所有年份**: 将所有选秀年份的状态重置为初始可用状态。
-- **3. 查看可用年份**: 显示当前所有可用的及处于冷却期中的年份。
-- **4. 重置当前年份**: 可输入自定义起始年份（直接回车使用默认值），同时重置所有年份权重。
-- **0. 退出程序**
-
-### 运行50年模拟测试
-
-```bash
-python run_simulation.py
-```
-
-## 测试
-
-项目包含自动化测试套件 `test_core.py`，覆盖以下核心逻辑：
-
-- 20年窗口可用性规则（不同起始年份：1995、2000、2026、2050）
-- 使用后冷却期（冷却到期恢复、未到期阻塞、多年份独立冷却）
-- 重置功能（清除记录、自定义年份重置、持久化）
-- 年份持久化（保存/读取、递增、默认值）
-- 伪随机选择器（覆盖性、重洗牌）
-- 完整选秀流程（年份递增、标记使用、连续选秀）
-- 球队映射完整性
-
-运行全部测试：
+## 测试 / Testing
 
 ```bash
 python -m unittest test_core -v
 ```
 
-## 构建可执行文件
+测试覆盖：
+- 20年窗口可用性规则
+- 使用后冷却期
+- 重置功能
+- 年份持久化
+- 伪随机选择器
+- 完整选秀流程
+- i18n 翻译 key 一致性、语言切换、球队/位置覆盖
 
-运行构建脚本（会自动检查依赖、清理旧文件、打包）：
+## 构建可执行文件 / Build
 
 ```bash
 build.bat
 ```
 
-构建成功后生成 `dist\2KDraftPicker.exe`，双击即可运行，无需 Python 环境。
+构建成功后生成 `dist\2KDraftPicker.exe`。
 
-## 项目结构
+## 项目结构 / Project Structure
 
 ```
 .
-├── main.py             # CLI 版本
-├── gui_main.py         # GUI 版本 (tkinter)
-├── run_simulation.py   # 50年模拟测试
-├── test_core.py        # 自动化测试
-├── .env                # 环境变量配置
-├── requirements.txt    # 项目依赖 (python-dotenv)
-├── build.bat           # 构建脚本
-├── 2KDraftPicker.bat   # GUI 启动器
-└── logs/               # (自动生成) 模拟日志和报告
+├── core.py             # 共享核心逻辑 / Shared core logic
+├── i18n.py             # 国际化模块 / i18n module (zh/en)
+├── main.py             # CLI 版本 / CLI interface
+├── gui_main.py         # GUI 版本 / GUI interface (tkinter)
+├── test_core.py        # 自动化测试 / Unit tests
+├── .env                # 环境变量配置 / Environment config
+├── requirements.txt    # 项目依赖 / Dependencies
+├── build.bat           # 构建脚本 / Build script
+└── 2KDraftPicker.bat   # GUI 启动器 / GUI launcher
 ```

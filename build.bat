@@ -100,6 +100,8 @@ echo.
     --add-data "requirements.txt;." ^
     --hidden-import=dotenv ^
     --hidden-import=tkinter ^
+    --hidden-import=core ^
+    --hidden-import=i18n ^
     gui_main.py
 
 if !errorlevel! neq 0 (

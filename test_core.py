@@ -9,21 +9,21 @@ import os
 import shutil
 import unittest
 
-# 设置隔离的测试数据目录（必须在 import main 之前）
+# 设置隔离的测试数据目录（必须在 import core 之前）
 _test_data_dir = tempfile.mkdtemp()
 os.environ['DRAFT_PICKER_DATA_DIR'] = _test_data_dir
 os.environ.pop('SIMULATION_START_YEAR', None)
 
-import main
-from main import (
+import core
+from core import (
     load_draft_weights, save_draft_weights, reset_weights,
     is_all_weights_zero, get_current_year, save_current_year,
     increment_year, PseudoRandomPicker, random_lose_player,
-    get_team_english_name, run_draft,
+    NBA_TEAMS, POSITIONS,
     EARLIEST_DRAFT_YEAR, LATEST_HISTORICAL_DRAFT_YEAR,
     COOL_DOWN_PERIOD, CURRENT_YEAR_FILE, DRAFT_WEIGHTS_FILE,
-    TEAM_MAPPING, NBA_TEAMS, POSITIONS
 )
+from main import run_draft
 
 # load_dotenv 可能从 .env 加载了 SIMULATION_START_YEAR，需要移除
 os.environ.pop('SIMULATION_START_YEAR', None)
@@ -33,6 +33,10 @@ def _clean_data_files():
     for f in [CURRENT_YEAR_FILE, DRAFT_WEIGHTS_FILE]:
         if os.path.exists(f):
             os.remove(f)
+    # Also clean settings.json for i18n tests
+    settings_file = os.path.join(_test_data_dir, "settings.json")
+    if os.path.exists(settings_file):
+        os.remove(settings_file)
 
 
 def _available_years(weights):
@@ -238,7 +242,7 @@ class TestYearPersistence(unittest.TestCase):
     def test_default_year(self):
         """无文件且无环境变量时返回默认值"""
         year = get_current_year()
-        self.assertEqual(year, main.INITIAL_SIMULATION_YEAR)
+        self.assertEqual(year, core.INITIAL_SIMULATION_YEAR)
 
 
 class TestIsAllWeightsZero(unittest.TestCase):
@@ -291,12 +295,12 @@ class TestRunDraft(unittest.TestCase):
 
     def test_draft_increments_year(self):
         save_current_year(2026)
-        run_draft(TEAM_MAPPING, NBA_TEAMS, POSITIONS)
+        run_draft()
         self.assertEqual(get_current_year(), 2027)
 
     def test_draft_marks_one_year_used(self):
         save_current_year(2026)
-        run_draft(TEAM_MAPPING, NBA_TEAMS, POSITIONS)
+        run_draft()
 
         weights = load_draft_weights()
         used = [y for y, d in weights.items() if d['last_used_year'] == 2026]
@@ -305,7 +309,7 @@ class TestRunDraft(unittest.TestCase):
     def test_draft_selects_valid_year(self):
         """选中的年份应在可用范围内"""
         save_current_year(2026)
-        run_draft(TEAM_MAPPING, NBA_TEAMS, POSITIONS)
+        run_draft()
 
         weights = load_draft_weights()
         used = [y for y, d in weights.items() if d['last_used_year'] == 2026]
@@ -319,7 +323,7 @@ class TestRunDraft(unittest.TestCase):
         """连续选秀不会出错"""
         save_current_year(2026)
         for i in range(5):
-            run_draft(TEAM_MAPPING, NBA_TEAMS, POSITIONS)
+            run_draft()
         self.assertEqual(get_current_year(), 2031)
 
         weights = load_draft_weights()
@@ -327,24 +331,10 @@ class TestRunDraft(unittest.TestCase):
         self.assertEqual(used_count, 5)
 
 
-class TestTeamMapping(unittest.TestCase):
-    def test_known_team(self):
-        self.assertEqual(get_team_english_name("湖人", TEAM_MAPPING), "Lakers")
-
-    def test_unknown_returns_original(self):
-        self.assertEqual(get_team_english_name("未知队", TEAM_MAPPING), "未知队")
-
-    def test_all_teams_have_mapping(self):
-        """所有NBA_TEAMS都有英文映射"""
-        for team in NBA_TEAMS:
-            eng = get_team_english_name(team, TEAM_MAPPING)
-            self.assertNotEqual(eng, team, f"{team}缺少英文映射")
-
-
 class TestRandomLosePlayer(unittest.TestCase):
     def test_returns_valid_team_and_position(self):
-        teams = ["湖人", "勇士", "公牛"]
-        positions = ["控球后卫", "得分后卫", "小前锋"]
+        teams = ["Lakers", "Warriors", "Bulls"]
+        positions = ["PG", "SG", "SF"]
         tp = PseudoRandomPicker(teams)
         pp = PseudoRandomPicker(positions)
 
@@ -380,6 +370,80 @@ class TestWeightsPersistence(unittest.TestCase):
         self.assertIn(1980, weights)
         self.assertIn(2025, weights)
         self.assertEqual(len(weights), LATEST_HISTORICAL_DRAFT_YEAR - EARLIEST_DRAFT_YEAR + 1)
+
+
+class TestI18n(unittest.TestCase):
+    """测试 i18n 模块"""
+
+    def test_all_keys_consistent(self):
+        """zh and en should have the same set of keys"""
+        from i18n import TRANSLATIONS
+        zh_keys = set(TRANSLATIONS["zh"].keys())
+        en_keys = set(TRANSLATIONS["en"].keys())
+        self.assertEqual(zh_keys, en_keys,
+                         f"Missing keys: zh-en={zh_keys-en_keys}, en-zh={en_keys-zh_keys}")
+
+    def test_t_returns_string(self):
+        from i18n import t, set_language
+        set_language("zh")
+        result = t("app_title")
+        self.assertIsInstance(result, str)
+        self.assertNotEqual(result, "app_title")
+
+    def test_t_with_kwargs(self):
+        from i18n import t, set_language
+        set_language("en")
+        result = t("sim_year", year=2026)
+        self.assertIn("2026", result)
+
+    def test_t_returns_dict_for_teams(self):
+        from i18n import t, set_language
+        set_language("zh")
+        teams = t("teams")
+        self.assertIsInstance(teams, dict)
+        self.assertEqual(teams["Lakers"], "湖人")
+
+    def test_language_switch(self):
+        from i18n import t, set_language
+        set_language("zh")
+        zh_title = t("app_title")
+        set_language("en")
+        en_title = t("app_title")
+        self.assertNotEqual(zh_title, en_title)
+
+    def test_teams_coverage(self):
+        """All NBA_TEAMS should be in both language team dicts"""
+        from i18n import TRANSLATIONS
+        for lang in ["zh", "en"]:
+            teams = TRANSLATIONS[lang]["teams"]
+            for team in NBA_TEAMS:
+                self.assertIn(team, teams, f"{team} missing in {lang} teams")
+
+    def test_positions_coverage(self):
+        """All POSITIONS should be in both language position dicts"""
+        from i18n import TRANSLATIONS
+        for lang in ["zh", "en"]:
+            positions = TRANSLATIONS[lang]["positions"]
+            for pos in POSITIONS:
+                self.assertIn(pos, positions, f"{pos} missing in {lang} positions")
+
+    def test_detect_language_env_var(self):
+        from i18n import detect_language
+        os.environ["DRAFT_PICKER_LANG"] = "en"
+        try:
+            self.assertEqual(detect_language(), "en")
+        finally:
+            os.environ.pop("DRAFT_PICKER_LANG", None)
+
+    def test_detect_language_invalid_env(self):
+        from i18n import detect_language
+        os.environ["DRAFT_PICKER_LANG"] = "fr"
+        try:
+            # Should fall through to next priority
+            lang = detect_language()
+            self.assertIn(lang, ["zh", "en"])
+        finally:
+            os.environ.pop("DRAFT_PICKER_LANG", None)
 
 
 if __name__ == '__main__':
